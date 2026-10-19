@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <defs>
+    <radialGradient id="g" cx="50%" cy="42%" r="75%">
+      <stop offset="0%" stop-color="#17171b"/>
+      <stop offset="100%" stop-color="#0a0a0b"/>
+    </radialGradient>
+  </defs>
+  <rect width="400" height="400" fill="url(#g)"/>
+  <g fill="none" stroke="#3a3a42" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M104 246c-10-30-3-59 18-77l37-33c6-5 14-6 21-2l14 8 60 19c29 9 49 26 56 51l5 18c1 5-2 10-8 11l-194 24c-5 1-9-2-9-7v-12Z"/>
+    <path d="M158 173l24 27M181 152l26 29M205 132l27 29"/>
+    <path d="M100 256c60-5 152-15 211-28"/>
+    <path d="M112 270c61 6 142 3 205-12"/>
+  </g>
+  <text x="200" y="322" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" letter-spacing="5" fill="#55555e">SIN FOTO</text>
+</svg>
