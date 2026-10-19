@@ -993,7 +993,7 @@
       return LOOKUP_COLORS[lookupKey(tail)] ? '' : all;
     });
     clean = clean.replace(/["'“”()\[\]!.,:;]+/g, ' ');
-    return clean.split(/\s+/).filter(function (word) {
+    return clean.split(/[\s\-_]+/).filter(function (word) {
       return !lookupIsJunkWord(word, codeKey, brandKey);
     });
   }
@@ -1042,19 +1042,113 @@
     return { names: names, brand: detectedBrand };
   }
 
-  function lookupBuildImages(text) {
-    var raw = text.match(/https:\/\/th\.bing\.com\/th\/id\/OIP\.[^\s)\]]+/g) || [];
+  var LOOKUP_IMAGE_GOOD = [
+    'zapatilla', 'sneaker', 'shoe', 'tenis', 'calzado', 'botin', 'boot', 'footwear',
+    'deportiv', 'running', 'runner', 'trainer', 'sport', 'original', 'junior', 'kids',
+    'infantil', 'mujer', 'hombre', 'women', 'men', 'unisex', 'futbol', 'football',
+    'basket', 'store', 'tienda', 'shop', 'market', 'outlet', 'sale'
+  ];
+
+  var LOOKUP_IMAGE_BAD = [
+    'animal', 'cougar', 'felino', 'wildlife', 'zoo', 'salvaje', 'catit', 'lion',
+    'tattoo', 'tatuaje', 'dibujo', 'drawing', 'colorear', 'clipart', 'vector', 'icon',
+    'logo', 'wallpaper', 'fondo', 'mascota', 'instagram', 'facebook', 'pinterest',
+    'youtube', 'tiktok', 'meme', 'sticker', 'pixabay', 'shutterstock', 'istockphoto',
+    'alamy', 'dreamstime', 'freepik', 'vecteezy', 'gettyimages', '123rf'
+  ];
+
+  function lookupWordHaystack(value) {
+    return ' ' + normalizeText(value).replace(/[^a-z0-9]+/g, ' ') + ' ';
+  }
+
+  function lookupHasWord(words, list) {
+    for (var i = 0; i < list.length; i += 1) {
+      if (words.indexOf(' ' + list[i]) !== -1) return true;
+    }
+    return false;
+  }
+
+  function lookupParseImages(text) {
+    var out = [];
+    var re = /\[!\[Image \d+: Image result for[^\]]*\]\((https:\/\/th\.bing\.com\/th\/id\/(OIP\.[\w-]+)[^)]*)\)\]\((https?:\/\/[^)\s]*mediaurl=[^)\s]*)\)([\s\S]{0,1400}?)\*   \[([^\]]{3,300}?)\]\(/g;
+    var match;
+    while ((match = re.exec(text))) {
+      var detail = match[3] || '';
+      var media = '';
+      try { media = decodeURIComponent((detail.match(/mediaurl=([^&]+)/) || [])[1] || ''); } catch (error) { media = ''; }
+      out.push({
+        oip: match[2],
+        thumb: 'https://th.bing.com/th/id/' + match[2] + '?w=600&h=600&c=7&r=0&o=7&pid=1.7&rm=3',
+        title: String(match[5] || '').replace(/\s+/g, ' ').trim(),
+        media: media
+      });
+      if (out.length >= 80) break;
+    }
+    return out;
+  }
+
+  function lookupScoreImage(item, codeKey, brandKey) {
+    var hay = lookupKey(item.title + ' ' + item.media);
+    var words = lookupWordHaystack(item.title + ' ' + item.media);
+    var score = 0;
+    var codeHit = false;
+    if (codeKey && hay.indexOf(codeKey) !== -1) {
+      if (codeKey.length >= 4 || words.indexOf(' ' + codeKey + ' ') !== -1) codeHit = true;
+    }
+    if (codeHit) {
+      score += 100;
+    } else if (codeKey.length >= 6 && hay.indexOf(codeKey.slice(0, -2)) !== -1) {
+      score += 40;
+    }
+    if (lookupHasWord(words, LOOKUP_IMAGE_GOOD)) score += 15;
+    if (brandKey && hay.indexOf(brandKey) !== -1) score += 10;
+    if (lookupHasWord(words, LOOKUP_IMAGE_BAD)) score -= 120;
+    return score;
+  }
+
+  function lookupBuildImages(text, code, brand) {
+    var items = lookupParseImages(text);
+    var codeKey = lookupKey(code);
+    var brandKey = brand ? lookupKey(brand) : '';
+    var scored = [];
+    items.forEach(function (item) {
+      if (!item.title) return;
+      var score = lookupScoreImage(item, codeKey, brandKey);
+      if (score < 30) return;
+      scored.push({ url: item.thumb, oip: item.oip, score: score });
+    });
+    scored.sort(function (a, b) { return b.score - a.score; });
     var seen = {};
     var out = [];
-    for (var i = 0; i < raw.length; i += 1) {
-      if (/pid=InlineBlock/.test(raw[i])) continue;
-      var match = raw[i].match(/OIP\.[\w-]+/);
-      if (!match || seen[match[0]]) continue;
-      seen[match[0]] = 1;
-      out.push('https://th.bing.com/th/id/' + match[0] + '?w=600&h=600&c=7&r=0&o=7&pid=1.7&rm=3');
+    for (var i = 0; i < scored.length; i += 1) {
+      if (seen[scored[i].oip]) continue;
+      seen[scored[i].oip] = 1;
+      out.push(scored[i].url);
       if (out.length >= 8) break;
     }
     return out;
+  }
+
+  function lookupImages(brand, code) {
+    var base = (brand ? brand + ' ' : '') + code;
+    function run(query) {
+      return lookupFetch('https://r.jina.ai/https://www.bing.com/images/search?q=' + encodeURIComponent(query))
+        .then(function (text) { return lookupBuildImages(text, code, brand); })
+        .catch(function () { return []; });
+    }
+    return run(base + ' zapatillas').then(function (list) {
+      if (list.length >= 3) return list;
+      return run(base).then(function (more) {
+        var seen = {};
+        var out = [];
+        list.concat(more).forEach(function (url) {
+          if (seen[url]) return;
+          seen[url] = 1;
+          out.push(url);
+        });
+        return out.slice(0, 8);
+      });
+    });
   }
 
   function renderLookup(code, names, images) {
@@ -1073,6 +1167,8 @@
         html += '<button class="lookup-thumb" type="button" data-img="' + escapeHtml(url) + '" aria-label="Usar foto ' + (index + 1) + '"><img src="' + escapeHtml(url) + '" alt="" loading="lazy"></button>';
       });
       html += '</div></div>';
+    } else if (names.length) {
+      html += '<p class="lookup-empty">No encontré fotos confiables para este código. Sube una foto o pega un enlace.</p>';
     }
     el.lookupBody.innerHTML = html;
     el.lookupTitle.textContent = 'Resultados para «' + code + '»';
@@ -1143,15 +1239,10 @@
     if (cached) {
       imagesPromise = Promise.resolve(cached.images);
     } else if (brand) {
-      imagesPromise = lookupFetch('https://r.jina.ai/https://www.bing.com/images/search?q=' + encodeURIComponent(query))
-        .then(lookupBuildImages)
-        .catch(function () { return null; });
+      imagesPromise = lookupImages(brand, code);
     } else {
       imagesPromise = namesPromise.then(function (info) {
-        var imageQuery = ((info && info.brand) ? info.brand + ' ' : '') + code;
-        return lookupFetch('https://r.jina.ai/https://www.bing.com/images/search?q=' + encodeURIComponent(imageQuery))
-          .then(lookupBuildImages)
-          .catch(function () { return null; });
+        return lookupImages((info && info.brand) || '', code);
       });
     }
     Promise.all([namesPromise, imagesPromise]).then(function (parts) {
