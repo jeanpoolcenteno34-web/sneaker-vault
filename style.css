@@ -2621,6 +2621,10 @@ a.detail-tag:hover {
     padding: 7px;
   }
 
+  .search-kbd {
+    display: none;
+  }
+
   .filter-bar {
     gap: 10px;
   }
@@ -2715,41 +2719,41 @@ a.detail-tag:hover {
   }
 
   .stats {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .stat {
-    padding: 11px 10px 10px;
+    padding: 13px 14px 12px;
     align-items: flex-start;
   }
 
   .stat-value {
-    font-size: 1.12rem;
+    font-size: 1.35rem;
   }
 
   .stat-label {
-    font-size: 0.52rem;
-    letter-spacing: 0.12em;
+    font-size: 0.58rem;
+    letter-spacing: 0.14em;
   }
 
   .grid {
-    gap: 10px;
+    gap: 9px;
   }
 
   .card {
-    border-radius: 14px;
+    border-radius: 12px;
   }
 
   .card-info {
-    padding: 10px 10px 12px;
+    padding: 9px 9px 11px;
   }
 
   .card-name {
-    font-size: 0.81rem;
+    font-size: 0.78rem;
   }
 
   .card-price {
-    font-size: 0.84rem;
+    font-size: 0.8rem;
   }
 
   .card-code {
@@ -2757,23 +2761,29 @@ a.detail-tag:hover {
   }
 
   .card-meta {
-    font-size: 0.63rem;
-  }
-
-  .size-pill {
-    height: 20px;
-    padding: 0 5px;
     font-size: 0.6rem;
   }
 
+  .card-sizes {
+    gap: 3px;
+    margin-top: 7px;
+  }
+
+  .size-pill {
+    height: 19px;
+    padding: 0 4px;
+    font-size: 0.57rem;
+  }
+
   .badge-brand {
-    font-size: 0.53rem;
-    padding: 4px 7px;
+    font-size: 0.5rem;
+    padding: 4px 6px;
+    max-width: 58%;
   }
 
   .badge-stock {
-    font-size: 0.57rem;
-    padding: 4px 7px;
+    font-size: 0.55rem;
+    padding: 4px 6px;
   }
 
   .card-quick {
@@ -2874,21 +2884,6 @@ a.detail-tag:hover {
 
   .toast {
     bottom: calc(14px + env(safe-area-inset-bottom));
-  }
-}
-
-@media (max-width: 360px) {
-  .grid {
-    grid-template-columns: 1fr;
-  }
-
-  .add-btn {
-    width: auto;
-    padding: 0 12px;
-  }
-
-  .add-btn span {
-    display: inline;
   }
 }
 

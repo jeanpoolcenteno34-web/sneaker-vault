@@ -1,4 +1,4 @@
-const CACHE = 'sneaker-vault-v2';
+const CACHE = 'sneaker-vault-v3';
 const CORE = [
   './',
   './index.html',
