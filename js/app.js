@@ -1011,7 +1011,7 @@
     for (var i = 0; i < segments.length; i += 1) {
       if (codeKey && lookupKey(segments[i]).indexOf(codeKey) !== -1) { segment = segments[i]; break; }
     }
-    if (!segment) segment = segments[segments.length - 1] || '';
+    if (!segment) return [];
     return segment.split(/[-_]/).map(function (word) {
       return word.replace(/\.html?$/i, '');
     }).filter(function (word) {
@@ -1028,6 +1028,14 @@
     return clean.split(/[\s\-_]+/).filter(function (word) {
       return !lookupIsJunkWord(word, codeKey, brandKey);
     });
+  }
+
+  function lookupHasForeignCode(name, codeKey) {
+    var tokens = String(name || '').toLowerCase().match(/[a-z]{1,3}\d{4,5}[a-z]?/g) || [];
+    for (var i = 0; i < tokens.length; i += 1) {
+      if (tokens[i] !== codeKey) return true;
+    }
+    return false;
   }
 
   function lookupBuildNames(text, code, brand) {
@@ -1069,6 +1077,7 @@
         name = detectedBrand + ' ' + name;
       }
       if (lookupKey(name).length <= detectedKey.length + 2) return;
+      if (lookupHasForeignCode(name, codeKey)) return;
       if (names.indexOf(name) === -1) names.push(name);
     });
     return { names: names, brand: detectedBrand };
