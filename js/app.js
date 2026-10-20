@@ -748,6 +748,36 @@
     });
   }
 
+  function imagePadColor(image) {
+    try {
+      var small = document.createElement('canvas');
+      small.width = 8;
+      small.height = 8;
+      var sctx = small.getContext('2d');
+      sctx.drawImage(image, 0, 0, 8, 8);
+      var data = sctx.getImageData(0, 0, 8, 8).data;
+      var points = [[0, 0], [7, 0], [0, 7], [7, 7]];
+      var r = 0;
+      var g = 0;
+      var b = 0;
+      var n = 0;
+      for (var i = 0; i < points.length; i += 1) {
+        var idx = (points[i][1] * 8 + points[i][0]) * 4;
+        if (data[idx + 3] < 250) return '#ffffff';
+        r += data[idx];
+        g += data[idx + 1];
+        b += data[idx + 2];
+        n += 1;
+      }
+      if (!n) return '#ffffff';
+      var avg = (r + g + b) / (3 * n);
+      if (avg > 235) return '#ffffff';
+      return 'rgb(' + Math.round(r / n) + ',' + Math.round(g / n) + ',' + Math.round(b / n) + ')';
+    } catch (error) {
+      return '#ffffff';
+    }
+  }
+
   function encodeJpeg(image, maxDim, quality) {
     var plans = [
       { dim: maxDim, q: quality },
@@ -755,6 +785,7 @@
       { dim: 1000, q: 0.7 },
       { dim: 800, q: 0.62 }
     ];
+    var padColor = imagePadColor(image);
     var attempt = 0;
     var encoded = '';
     while (attempt < plans.length) {
@@ -762,13 +793,14 @@
       var scale = Math.min(1, plan.dim / Math.max(image.width, image.height));
       var width = Math.max(1, Math.round(image.width * scale));
       var height = Math.max(1, Math.round(image.height * scale));
+      var side = Math.max(width, height);
       var canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
+      canvas.width = side;
+      canvas.height = side;
       var ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#000000';
-      ctx.fillRect(0, 0, width, height);
-      ctx.drawImage(image, 0, 0, width, height);
+      ctx.fillStyle = padColor;
+      ctx.fillRect(0, 0, side, side);
+      ctx.drawImage(image, Math.round((side - width) / 2), Math.round((side - height) / 2), width, height);
       encoded = canvas.toDataURL('image/jpeg', plan.q);
       if (encoded.length <= 950000) break;
       attempt += 1;
@@ -1078,7 +1110,7 @@
       try { media = decodeURIComponent((detail.match(/mediaurl=([^&]+)/) || [])[1] || ''); } catch (error) { media = ''; }
       out.push({
         oip: match[2],
-        thumb: 'https://th.bing.com/th/id/' + match[2] + '?w=600&h=600&c=7&r=0&o=7&pid=1.7&rm=3',
+        bing: 'https://th.bing.com/th/id/' + match[2] + '?w=600&h=600&c=7&r=0&o=7&pid=1.7&rm=3',
         title: String(match[5] || '').replace(/\s+/g, ' ').trim(),
         media: media
       });
@@ -1087,7 +1119,33 @@
     return out;
   }
 
-  function lookupScoreImage(item, codeKey, brandKey) {
+  function lookupProxyImage(url, width) {
+    if (!url) return '';
+    return 'https://images.weserv.nl/?url=' + encodeURIComponent(url) + '&w=' + width + '&fit=inside&we=1&output=jpg&q=85';
+  }
+
+  function lookupModelTokens(names, code, brand) {
+    var out = [];
+    var seen = {};
+    var codeKey = lookupKey(code);
+    var brandKey = brand ? lookupKey(brand) : '';
+    (names || []).forEach(function (name) {
+      String(name || '').split(/[\s\-_]+/).forEach(function (word) {
+        var key = lookupKey(word);
+        if (key.length < 4) return;
+        if (key === codeKey || key === brandKey) return;
+        if (LOOKUP_STOP[key] || LOOKUP_COLORS[key]) return;
+        if (codeKey && codeKey.indexOf(key) !== -1) return;
+        if (/^\d+$/.test(key)) return;
+        if (seen[key]) return;
+        seen[key] = 1;
+        out.push(key);
+      });
+    });
+    return out;
+  }
+
+  function lookupScoreImage(item, codeKey, brandKey, modelTokens) {
     var hay = lookupKey(item.title + ' ' + item.media);
     var words = lookupWordHaystack(item.title + ' ' + item.media);
     var score = 0;
@@ -1100,22 +1158,38 @@
     } else if (codeKey.length >= 6 && hay.indexOf(codeKey.slice(0, -2)) !== -1) {
       score += 40;
     }
-    if (lookupHasWord(words, LOOKUP_IMAGE_GOOD)) score += 15;
-    if (brandKey && hay.indexOf(brandKey) !== -1) score += 10;
+    var hasBrand = brandKey && hay.indexOf(brandKey) !== -1;
+    var hasGood = lookupHasWord(words, LOOKUP_IMAGE_GOOD);
+    var modelHit = false;
+    if (modelTokens && modelTokens.length) {
+      for (var i = 0; i < modelTokens.length; i += 1) {
+        if (hay.indexOf(modelTokens[i]) !== -1) { modelHit = true; break; }
+      }
+    }
+    if (modelHit && (hasBrand || hasGood)) score += 30;
+    if (hasGood) score += 15;
+    if (hasBrand) score += 10;
     if (lookupHasWord(words, LOOKUP_IMAGE_BAD)) score -= 120;
     return score;
   }
 
-  function lookupBuildImages(text, code, brand) {
-    var items = lookupParseImages(text);
+  function lookupPickImages(items, code, brand, names) {
+    if (!items || !items.length) return [];
     var codeKey = lookupKey(code);
     var brandKey = brand ? lookupKey(brand) : '';
+    var modelTokens = lookupModelTokens(names, code, brand);
     var scored = [];
     items.forEach(function (item) {
-      if (!item.title) return;
-      var score = lookupScoreImage(item, codeKey, brandKey);
+      if (!item || !item.title) return;
+      var score = lookupScoreImage(item, codeKey, brandKey, modelTokens);
       if (score < 30) return;
-      scored.push({ url: item.thumb, oip: item.oip, score: score });
+      scored.push({
+        oip: item.oip,
+        score: score,
+        src: lookupProxyImage(item.media, 600) || item.bing,
+        url: lookupProxyImage(item.media, 1200) || item.bing,
+        alt: item.bing
+      });
     });
     scored.sort(function (a, b) { return b.score - a.score; });
     var seen = {};
@@ -1123,30 +1197,25 @@
     for (var i = 0; i < scored.length; i += 1) {
       if (seen[scored[i].oip]) continue;
       seen[scored[i].oip] = 1;
-      out.push(scored[i].url);
+      out.push({ src: scored[i].src, url: scored[i].url, alt: scored[i].alt });
       if (out.length >= 8) break;
     }
     return out;
   }
 
-  function lookupImages(brand, code) {
+  function lookupRawImages(query) {
+    return lookupFetch('https://r.jina.ai/https://www.bing.com/images/search?q=' + encodeURIComponent(query))
+      .then(lookupParseImages)
+      .catch(function () { return []; });
+  }
+
+  function lookupImages(brand, code, names) {
     var base = (brand ? brand + ' ' : '') + code;
-    function run(query) {
-      return lookupFetch('https://r.jina.ai/https://www.bing.com/images/search?q=' + encodeURIComponent(query))
-        .then(function (text) { return lookupBuildImages(text, code, brand); })
-        .catch(function () { return []; });
-    }
-    return run(base + ' zapatillas').then(function (list) {
-      if (list.length >= 3) return list;
-      return run(base).then(function (more) {
-        var seen = {};
-        var out = [];
-        list.concat(more).forEach(function (url) {
-          if (seen[url]) return;
-          seen[url] = 1;
-          out.push(url);
-        });
-        return out.slice(0, 8);
+    return lookupRawImages(base + ' zapatillas').then(function (raw) {
+      var picked = lookupPickImages(raw, code, brand, names);
+      if (picked.length >= 3) return picked;
+      return lookupRawImages(base).then(function (more) {
+        return lookupPickImages(raw.concat(more), code, brand, names);
       });
     });
   }
@@ -1163,8 +1232,13 @@
     }
     if (images.length) {
       html += '<div class="lookup-row"><span class="lookup-label">Foto <em>toca la correcta</em></span><div class="lookup-thumbs">';
-      images.forEach(function (url, index) {
-        html += '<button class="lookup-thumb" type="button" data-img="' + escapeHtml(url) + '" aria-label="Usar foto ' + (index + 1) + '"><img src="' + escapeHtml(url) + '" alt="" loading="lazy"></button>';
+      images.forEach(function (item, index) {
+        var src = item.src || item;
+        var alt = item.alt || '';
+        html += '<button class="lookup-thumb" type="button" data-img="' + escapeHtml(item.url || item) + '"' +
+          (alt ? ' data-alt="' + escapeHtml(alt) + '"' : '') +
+          ' aria-label="Usar foto ' + (index + 1) + '"><img src="' + escapeHtml(src) + '" alt="" loading="lazy"' +
+          (alt ? ' onerror="this.onerror=null;this.src=\'' + alt + '\'"' : '') + '></button>';
       });
       html += '</div></div>';
     } else if (names.length) {
@@ -1182,9 +1256,12 @@
     }
   }
 
-  function lookupApplyImage(url, button) {
+  function lookupApplyImage(url, alt, button) {
     button.classList.add('is-loading');
-    imageFromUrl(url).then(function (src) {
+    imageFromUrl(url).catch(function () {
+      if (!alt || alt === url) throw new Error('sin respaldo');
+      return imageFromUrl(alt);
+    }).then(function (src) {
       state.editor.image = src;
       state.editor.imageChanged = true;
       showEditorImage(src);
@@ -1238,11 +1315,9 @@
     var imagesPromise;
     if (cached) {
       imagesPromise = Promise.resolve(cached.images);
-    } else if (brand) {
-      imagesPromise = lookupImages(brand, code);
     } else {
       imagesPromise = namesPromise.then(function (info) {
-        return lookupImages((info && info.brand) || '', code);
+        return lookupImages(brand || (info && info.brand) || '', code, (info && info.names) || []);
       });
     }
     Promise.all([namesPromise, imagesPromise]).then(function (parts) {
@@ -2247,7 +2322,7 @@
         return;
       }
       var thumb = event.target.closest('.lookup-thumb');
-      if (thumb) lookupApplyImage(thumb.getAttribute('data-img'), thumb);
+      if (thumb) lookupApplyImage(thumb.getAttribute('data-img'), thumb.getAttribute('data-alt'), thumb);
     });
     el.fCode.addEventListener('input', function () {
       if (!el.lookupPanel.hidden) closeLookup();
