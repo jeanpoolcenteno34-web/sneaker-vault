@@ -1261,6 +1261,13 @@ p {
   margin: 0 auto 20px;
 }
 
+.empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
 .site-footer {
   position: relative;
   z-index: 1;

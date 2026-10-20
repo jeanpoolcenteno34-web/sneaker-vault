@@ -112,10 +112,10 @@
             <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
           </button>
 
-          <label class="switch">
-            <input type="checkbox" id="show-soldout">
+          <label class="switch" title="Mostrar también los modelos agotados">
+            <input type="checkbox" id="show-soldout" aria-label="Mostrar también los modelos agotados">
             <span class="switch-track" aria-hidden="true"><span></span></span>
-            <span class="switch-label">Agotados</span>
+            <span class="switch-label">Ver agotados</span>
           </label>
         </div>
 
@@ -153,9 +153,12 @@
             <path d="M8 11h6"></path>
           </svg>
         </span>
-        <h2>Sin resultados</h2>
-        <p>No encontramos zapatillas con esos filtros. Prueba con otra talla, marca o código.</p>
-        <button class="btn btn-outline" type="button" id="clear-filters-btn">Limpiar filtros</button>
+        <h2 id="empty-title">Sin resultados</h2>
+        <p id="empty-text">No encontramos zapatillas con esos filtros. Prueba con otra talla, marca o código.</p>
+        <div class="empty-actions">
+          <button class="btn btn-primary" type="button" id="empty-soldout-btn" hidden>Mostrar agotados</button>
+          <button class="btn btn-outline" type="button" id="clear-filters-btn">Limpiar filtros</button>
+        </div>
       </div>
     </section>
   </main>

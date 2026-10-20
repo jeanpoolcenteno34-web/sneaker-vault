@@ -83,6 +83,9 @@
     el.clearSizeBtn = $('clear-size-btn');
     el.grid = $('grid');
     el.emptyState = $('empty-state');
+    el.emptyTitle = $('empty-title');
+    el.emptyText = $('empty-text');
+    el.emptySoldoutBtn = $('empty-soldout-btn');
     el.clearFiltersBtn = $('clear-filters-btn');
     el.footerCount = $('footer-count');
     el.detailModal = $('detail-modal');
@@ -372,13 +375,12 @@
 
   function applyFilters() {
     var tokens = queryTokens();
-    var filtering = tokens.length > 0 || !!state.prefs.size;
     var list = [];
     state.products.forEach(function (product) {
       if (!matchesBrand(product)) return;
       if (!matchesSize(product)) return;
       if (!matchesQuery(product, tokens)) return;
-      if (!state.prefs.soldout && !filtering && isOut(product)) return;
+      if (!state.prefs.soldout && isOut(product)) return;
       list.push(product);
     });
     var sort = state.prefs.sort;
@@ -391,6 +393,18 @@
     });
     state.list = list;
     return list;
+  }
+
+  function hiddenSoldoutCount() {
+    var tokens = queryTokens();
+    var count = 0;
+    state.products.forEach(function (product) {
+      if (!matchesBrand(product)) return;
+      if (!matchesSize(product)) return;
+      if (!matchesQuery(product, tokens)) return;
+      if (isOut(product)) count += 1;
+    });
+    return count;
   }
 
   function sizeInventory() {
@@ -486,9 +500,17 @@
 
   function renderGrid(list) {
     if (!list.length) {
+      var hidden = state.prefs.soldout ? 0 : hiddenSoldoutCount();
       el.grid.hidden = true;
       el.grid.innerHTML = '';
       el.emptyState.hidden = false;
+      el.emptySoldoutBtn.hidden = !hidden;
+      el.emptyTitle.textContent = hidden ? 'Solo hay agotados' : 'Sin resultados';
+      el.emptyText.textContent = hidden
+        ? (hidden === 1
+          ? 'El modelo que coincide está agotado. Puedes mostrarlo igual.'
+          : 'Los ' + hidden + ' modelos que coinciden están agotados. Puedes mostrarlos igual.')
+        : 'No encontramos zapatillas con esos filtros. Prueba con otra talla, marca o código.';
       return;
     }
     el.emptyState.hidden = true;
@@ -524,7 +546,7 @@
 
   function updateResults(list) {
     if (!list.length) {
-      el.resultsText.textContent = 'Sin resultados';
+      el.resultsText.textContent = (!state.prefs.soldout && hiddenSoldoutCount()) ? 'Solo agotados' : 'Sin resultados';
       return;
     }
     var pairs = list.reduce(function (acc, product) { return acc + totalPairs(product); }, 0);
@@ -2187,6 +2209,15 @@
       state.prefs.soldout = el.showSoldout.checked;
       savePrefs();
       renderAll();
+      showToast(state.prefs.soldout ? 'Mostrando también los agotados' : 'Ocultando los agotados');
+    });
+
+    el.emptySoldoutBtn.addEventListener('click', function () {
+      state.prefs.soldout = true;
+      el.showSoldout.checked = true;
+      savePrefs();
+      renderAll();
+      showToast('Mostrando también los agotados');
     });
 
     el.sortSelect.value = state.prefs.sort;
